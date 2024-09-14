@@ -383,6 +383,7 @@ if st.session_state.input and (st.session_state.state == 'continuation'):
 
         st.session_state.state = 'prepare'
         st.session_state.input = None
+        st.session_state.options = 0
     
     if response.isdigit():
         further_info(st.session_state.context, int(response))
