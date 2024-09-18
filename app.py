@@ -16,6 +16,8 @@ if 'memories' not in st.session_state:
     st.session_state.memories = []
 if 'preference' not in st.session_state:
     st.session_state.preference = None
+if 'location' not in st.session_state:
+    st.session_state.location = None
 if 'input' not in st.session_state:
     st.session_state.input = None
 if 'state' not in st.session_state:
@@ -24,6 +26,8 @@ if 'options' not in st.session_state:
     st.session_state.options = 0
 if 'context' not in st.session_state:
     st.session_state.context = None
+if 'london' not in st.session_state:
+    st.session_state.london = False
 
 
 # Suppress warnings related to date parsing
@@ -72,7 +76,7 @@ def get_place_id(query):
     headers = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": gmap_api,  # Replace with your actual API key
-        "X-Goog-FieldMask": "places.id"
+        "X-Goog-FieldMask": "places.id,places.location"
     }
 
     # Define the data payload
@@ -83,7 +87,8 @@ def get_place_id(query):
     # Make the POST request
     response = requests.post(url, headers=headers, json=data)
 
-    return response.json()['places'][0]['id']
+    return response.json()['places'][0]['id'], response.json()['places'][0]['location']
+
 
 def get_place_info(place_id):
     url = f"https://places.googleapis.com/v1/places/{place_id}"
@@ -91,7 +96,7 @@ def get_place_info(place_id):
     # Define the headers
     headers = {
         "Content-Type": "application/json; charset=utf-8",
-        "X-Goog-FieldMask": "*",
+        "X-Goog-FieldMask": "displayName,formattedAddress,internationalPhoneNumber,priceLevel,reservable,googleMapsUri,websiteUri,regularOpeningHours",
     }
 
     # Define the headers
@@ -115,25 +120,62 @@ def get_place_info(place_id):
     return restaurant_data
 
 
+def nearest_metro_walk(loc_dict, destination):
+    # Define the URL
+    url = "https://places.googleapis.com/v1/places:searchNearby"
+
+    # Define the headers
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": gmap_api,  # Replace with your actual API key
+        "X-Goog-FieldMask": "*"
+    }
+
+    # Define the data payload
+    data = {
+        "includedTypes": ["subway_station", "light_rail_station", 'train_station', 'transit_station'],
+        "maxResultCount": 1,
+        "locationRestriction": {
+        "circle": {
+        "center": {
+            "latitude": loc_dict['latitude'],
+            "longitude": loc_dict['longitude']},
+        "radius": 1000
+        }
+    }
+    }
+
+    # Make the POST request
+    response = requests.post(url, headers=headers, json=data)
+    nearest_subway_name = response.json()['places'][0]['displayName']
+    nearest_subway_address = response.json()['places'][0]['formattedAddress']
+    distance, duration = get_distance(nearest_subway_address, destination)
+
+    return nearest_subway_name, distance, duration
+
+
 # function in the case the question is not on topic
-def off_topic_response(state):
-    if state == 'preference':
+def off_topic_response(topic):
+    if topic == 'preference':
         answer = "\nSorry, I didn’t quite catch your dining preference. Could you please rephrase or clarify it?"
         st.session_state.memories.append({"role": "assistant", "content": answer})
+        st.session_state.state = 'prepare'
 
         with st.chat_message("assistant"):
             st.write_stream(stream_data(answer))
     
-    elif state == 'location':
+    elif topic == 'location':
         answer = "\nI’m sorry, but I wasn’t able to find your location. Could you please try rephrasing or provide a different address?"
         st.session_state.memories.append({"role": "assistant", "content": answer})
+        st.session_state.state = 'location'
 
         with st.chat_message("assistant"):
             st.write_stream(stream_data(answer))
     
-    elif state == 'far':
+    elif topic == 'far':
         answer = "\nIt seems there are no restaurants nearby that match your preferences in our database. Please try entering a different location."
         st.session_state.memories.append({"role": "assistant", "content": answer})
+        st.session_state.state = 'location'
 
         with st.chat_message("assistant"):
             st.write_stream(stream_data(answer))
@@ -148,7 +190,9 @@ def get_preference(input):
         Instructions:
         - Rephrase the user's restaurant or food preference into a clear and concise statement, removing filler words and keeping only relevant information.
         - If the input is unrelated to dining or food preferences, return only "False"
-        - Otherwise, return the answer in the format: "Preference" = user's preference
+        - Otherwise, return the answer in the format: Preference = user's preference
+        - If the input indicate a location also return Location = user's location
+        - The location should be cleaned, meaning it should be stripped of filler words such as 'near', 'to', 'in', etc
         """
     
     # prompt template, format the system message and user question
@@ -166,14 +210,22 @@ def get_preference(input):
     if response_text.lower() == 'false':
         off_topic_response('preference')
     else:
-        answer = "\nNoted! Can you please tell me your starting point? It can be a specific address or an area."
-        st.session_state.memories.append({"role": "assistant", "content": answer})
+        if 'location' in response_text.lower():
+            st.session_state.location = response_text.split(' = ')[-1]
+            st.session_state.state = 'generate'
+            return response_text.lower().split('location')[0]
 
-        with st.chat_message("assistant"):
-            st.write_stream(stream_data(answer))
+        else:
+            answer = "\nNoted! Can you please tell me your starting point? It can be a specific address or an area."
+            st.session_state.memories.append({"role": "assistant", "content": answer})
 
-        st.session_state.state = 'generate'
-        return response_text
+            with st.chat_message("assistant"):
+                st.write_stream(stream_data(answer))
+
+            st.session_state.state = 'location'
+            st.session_state.input = None
+            return response_text
+        
     
 def generate_recommendations(context):
     if st.session_state.options <= 2:
@@ -198,6 +250,7 @@ def generate_recommendations(context):
             [new line] A short and concise description (no more than 3 sentences).
             - Distance from the user’s location.
             - Duration to get there.
+            - The transportation fare if it is not None.
             - The address of the restaurant.
             Each separated by new line
         - Keep responses courteous and helpful, without making assumptions beyond the provided data.
@@ -237,8 +290,31 @@ def generate_recommendations(context):
         st.session_state.state = 'prepare'
         st.session_state.options = 0
 
+def get_distance(start, end):
+    # Define the base URL and parameters
+    base_url = "https://maps.googleapis.com/maps/api/distancematrix/json"
 
-def get_distance(address, context):
+    # Define the parameters
+    params = {
+        "destinations": end,
+        "origins": start,
+        "key": gmap_api,
+        "mode": 'walking'
+    }
+
+    # Make the request
+    response = requests.get(base_url, params=params).json()
+
+    try:
+        distance = response['rows'][0]['elements'][0]['distance']['text']
+        duration = response['rows'][0]['elements'][0]['duration']['text']
+        return distance, duration
+
+    except KeyError:
+        off_topic_response('location')
+        return False
+
+def get_all_distance(address, context):
     with st.spinner('Fetching information...'):
         final_li = []
         for doc in context:
@@ -252,8 +328,10 @@ def get_distance(address, context):
             # Define the parameters
             params = {
                 "destinations": rest_address,
-                "origins": address,
-                "key": gmap_api
+                "origins": address if 'london' not in address.lower() else address + ', London',
+                "key": gmap_api,
+                "mode": 'transit',
+                'transit_mode': 'subway'
             }
 
             # Make the request
@@ -262,6 +340,7 @@ def get_distance(address, context):
             try:
                 context_dict['distance'] = response['rows'][0]['elements'][0]['distance']['text']
                 context_dict['duration'] = response['rows'][0]['elements'][0]['duration']['text']
+                context_dict['fare'] = response['rows'][0]['elements'][0].get('fare', {}).get('text', None)
                 final_li.append(context_dict)
 
             except KeyError:
@@ -271,8 +350,7 @@ def get_distance(address, context):
     # Sort the list first by smallest distance, then by highest score
     sorted_data = sorted(
         final_li,
-        key=lambda x: (float(x['distance'].replace(' km', '').replace(',', '.')), -x['score'])
-    )
+       key=lambda x: ( float(x['distance'].replace(' km', '').replace(' m', '').replace(',', '.')), -x['score']))
 
     if np.mean([float(i['distance'].split()[0]) for i in sorted_data]) > 50:
         off_topic_response('far')
@@ -291,8 +369,10 @@ def further_info(context, number):
         selected = context[start:end][number-1]
         
         rest_name_address = selected['Restaurant'] + '; ' + selected['Address'] 
-        print(rest_name_address)
-        place_id = get_place_id(rest_name_address)
+        place_id, place_loc = get_place_id(rest_name_address)
+
+        print(place_loc, selected['Address'])
+        metro_name, distance, duration = nearest_metro_walk(place_loc, selected['Address'])
 
         restaurant_info = get_place_info(place_id)
         
@@ -306,6 +386,7 @@ def further_info(context, number):
         - Emphasize key details, presenting each piece of information on a new line for better readability.
         - Display the restaurant name in a larger font.
         - Do not prompt the user to ask for additional details.
+        - Include the nearest metro name, the distance by walking and estimated duration
         - Conclude by informing the user they can view information about other restaurants by selecting a number, explore more options based on their preferences, or set new preferences.
         """
         
@@ -314,10 +395,11 @@ def further_info(context, number):
             [
                 ("system", system),
                 ("system", "Here are the restaurants data: {restaurant_info}"),
+                ("system", "Here are the nearest metro: {metro_name}, distance: {distance}, and duration by walking: {duration}"),
                 # ("human", "User question: {input}"),
             ]
         )
-        prompt = TEMPLATE.format( restaurant_info=restaurant_info)
+        prompt = TEMPLATE.format( restaurant_info=restaurant_info, metro_name=metro_name, distance=distance, duration=duration)
 
         # with st.spinner('Fetching information...'):
         model = ChatOpenAI(model="gpt-4o")
@@ -327,6 +409,7 @@ def further_info(context, number):
     st.session_state.memories.append({"role": "assistant", "content": response_text})
     with st.chat_message("assistant"):
         st.write_stream(stream_data(response_text))
+
 
 
             
@@ -359,11 +442,14 @@ if user_input := st.chat_input("Say Something"):
 
 if st.session_state.input and (st.session_state.state == 'prepare'):
     st.session_state.preference = get_preference(user_input)
-    st.session_state.input = None
 
-if st.session_state.input and (st.session_state.state == 'generate'):
+if st.session_state.input and (st.session_state.state == 'location'):
+    st.session_state.location = user_input
+    st.session_state.state = 'generate'
+
+if st.session_state.state == 'generate':
     restaurants_context = get_context(st.session_state.preference)
-    st.session_state.context = get_distance(user_input, restaurants_context)
+    st.session_state.context = get_all_distance(st.session_state.location, restaurants_context)
     if st.session_state.context != False:
         generate_recommendations(st.session_state.context)
         st.session_state.input = None
