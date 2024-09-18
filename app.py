@@ -38,7 +38,7 @@ os.environ['OPENAI_API_KEY'] = st.secrets['OPENAI_API_KEY']
 gmap_api = st.secrets['GOOGLE_API_KEY']
 
 # webapp title
-st.title('Restaurant Assistant')
+st.title('London Restaurant AI Assitant')
 
 # Vector DB
 embeddings = OpenAIEmbeddings()
