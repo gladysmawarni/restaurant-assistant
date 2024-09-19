@@ -38,7 +38,7 @@ os.environ['OPENAI_API_KEY'] = st.secrets['OPENAI_API_KEY']
 gmap_api = st.secrets['GOOGLE_API_KEY']
 
 # webapp title
-st.title('Restaurant Assistant')
+st.title('London Restaurant AI Assitant')
 
 # Vector DB
 embeddings = OpenAIEmbeddings()
@@ -250,7 +250,7 @@ def generate_recommendations(context):
             [new line] A short and concise description (no more than 3 sentences).
             - Distance from the user’s location.
             - Duration to get there.
-            - The transportation fare if it is not None.
+            - The transportation fare, skip this if the fare is None
             - The address of the restaurant.
             Each separated by new line
         - Keep responses courteous and helpful, without making assumptions beyond the provided data.
