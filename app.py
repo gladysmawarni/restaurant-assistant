@@ -334,10 +334,8 @@ def get_all_distance(address, context):
                 'transit_mode': 'subway'
             }
 
-            print(params)
             # Make the request
             response = requests.get(base_url, params=params).json()
-            print(response)
 
             try:
                 context_dict['distance'] = response['rows'][0]['elements'][0]['distance']['text']
@@ -373,7 +371,6 @@ def further_info(context, number):
         rest_name_address = selected['Restaurant'] + '; ' + selected['Address'] 
         place_id, place_loc = get_place_id(rest_name_address)
 
-        print(place_loc, selected['Address'])
         metro_name, distance, duration = nearest_metro_walk(place_loc, selected['Address'])
 
         restaurant_info = get_place_info(place_id)
