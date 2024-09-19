@@ -328,14 +328,16 @@ def get_all_distance(address, context):
             # Define the parameters
             params = {
                 "destinations": rest_address,
-                "origins": address if 'london' not in address.lower() else address + ', London',
+                "origins": address if 'london' in address.lower() else address + ', London',
                 "key": gmap_api,
                 "mode": 'transit',
                 'transit_mode': 'subway'
             }
 
+            print(params)
             # Make the request
             response = requests.get(base_url, params=params).json()
+            print(response)
 
             try:
                 context_dict['distance'] = response['rows'][0]['elements'][0]['distance']['text']
