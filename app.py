@@ -51,7 +51,7 @@ def stream_data(response):
         time.sleep(0.04)
 
 def get_context(preference):
-    docs_faiss = faiss_db.similarity_search_with_relevance_scores(preference, k=10)
+    docs_faiss = faiss_db.similarity_search_with_relevance_scores(preference, k=15)
     return docs_faiss
 
 def check_response(user_input):
@@ -350,7 +350,7 @@ def get_all_distance(address, context):
     # Sort the list first by smallest distance, then by highest score
     sorted_data = sorted(
         final_li,
-       key=lambda x: ( float(x['distance'].replace(' km', '').replace(' m', '').replace(',', '.')), -x['score']))
+       key=lambda x: (float(x['distance'].replace(' km', '').replace(' m', '').replace(',', '.')), -x['score']))
 
     if np.mean([float(i['distance'].split()[0]) for i in sorted_data]) > 50:
         off_topic_response('far')
