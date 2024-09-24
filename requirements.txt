@@ -6,4 +6,4 @@ Requests==2.32.3
 streamlit==1.38.0
 faiss-cpu==1.8.0
 selenium==4.21.0
-webdriver-manager==4.0.2
+webdriver-manager==5.7.0

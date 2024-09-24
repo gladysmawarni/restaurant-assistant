@@ -16,7 +16,7 @@ def ss_website(url):
         options.add_argument('--headless')
         options.add_argument('--disable-gpu')
         options.add_argument('--window-size=1920,1200')
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().driverVersion("122").install()),
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()),
                                   options=options)
         st.write(f"DEBUG:DRIVER:{driver}")
         driver.get(url)
