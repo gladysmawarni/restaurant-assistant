@@ -73,6 +73,7 @@ def check_response(user_input):
     return response_text
 
 
+
 def get_geolocation(place):
     geocoding_url = "https://maps.googleapis.com/maps/api/geocode/json?"
     address = place
