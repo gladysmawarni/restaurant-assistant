@@ -28,7 +28,9 @@ if 'context' not in st.session_state:
     st.session_state.context = None
 if 'london' not in st.session_state:
     st.session_state.london = False
-
+if ('lat' not in st.session_state) or ('lng' not in st.session_state):
+    st.session_state.lat = None
+    st.session_state.lng = None
 
 # Suppress warnings related to date parsing
 warnings.filterwarnings("ignore")
@@ -51,6 +53,7 @@ def stream_data(response):
         time.sleep(0.04)
 
 def get_context(preference):
+    print(preference)
     docs_faiss = faiss_db.similarity_search_with_relevance_scores(preference, k=15)
     return docs_faiss
 
@@ -62,32 +65,28 @@ def check_response(user_input):
         - It indicates the user wants to choose/set another preference, answer ONLY 'preference'
         - If it indicates neither, answer ONLY 'neither'
         - If it is a number, do not change it and answer as it is
+        - If it mentions a number, answer ONLY the number
         - Do not answer more than the 1 word / 1 number
     """
     response_text = model.invoke(prompt).content
 
     return response_text
 
-def get_place_id(query):
-    # Define the URL
-    url = "https://places.googleapis.com/v1/places:searchText"
 
-    # Define the headers
-    headers = {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": gmap_api,  # Replace with your actual API key
-        "X-Goog-FieldMask": "places.id,places.location"
+def get_geolocation(place):
+    geocoding_url = "https://maps.googleapis.com/maps/api/geocode/json?"
+    address = place
+    # Define the parameters
+    params = {
+        "address": address,
+        "key": gmap_api, # Replace with your actual API key
     }
-
-    # Define the data payload
-    data = {
-        "textQuery": query
-    }
-
-    # Make the POST request
-    response = requests.post(url, headers=headers, json=data)
-
-    return response.json()['places'][0]['id'], response.json()['places'][0]['location']
+    response = requests.get(geocoding_url, params=params)
+    geodata=response.json()
+    
+    latitude = geodata['results'][0]['geometry']['location']['lat']
+    longitude = geodata['results'][0]['geometry']['location']['lng']
+    return (latitude, longitude)
 
 
 def get_place_info(place_id):
@@ -120,14 +119,14 @@ def get_place_info(place_id):
     return restaurant_data
 
 
-def nearest_metro_walk(loc_dict, destination):
+def nearest_metro_walk(latitude, longitude, destination):
     # Define the URL
     url = "https://places.googleapis.com/v1/places:searchNearby"
 
     # Define the headers
     headers = {
         "Content-Type": "application/json",
-        "X-Goog-Api-Key": gmap_api,  # Replace with your actual API key
+        "X-Goog-Api-Key": gmap_api, 
         "X-Goog-FieldMask": "*"
     }
 
@@ -138,8 +137,8 @@ def nearest_metro_walk(loc_dict, destination):
         "locationRestriction": {
         "circle": {
         "center": {
-            "latitude": loc_dict['latitude'],
-            "longitude": loc_dict['longitude']},
+            "latitude": latitude,
+            "longitude": longitude},
         "radius": 1000
         }
     }
@@ -189,6 +188,7 @@ def get_preference(input):
 
         Instructions:
         - Rephrase the user's restaurant or food preference into a clear and concise statement, removing filler words and keeping only relevant information.
+        - Prioritize food preference/allergy, put additional information in a bracket. example: vegan restaurant (family-friendly)
         - If the input is unrelated to dining or food preferences, return only "False"
         - Otherwise, return the answer in the format: Preference = user's preference
         - If the input indicate a location also return Location = user's location
@@ -212,8 +212,9 @@ def get_preference(input):
     else:
         if 'location' in response_text.lower():
             st.session_state.location = response_text.split(' = ')[-1]
+            st.session_state.lat, st.session_state.lng = get_geolocation(st.session_state.location  if 'london' in st.session_state.location.lower() else st.session_state.location + ', London')
             st.session_state.state = 'generate'
-            return response_text.lower().split('location')[0]
+            return response_text.lower() + f" (latitude: {st.session_state.lat}, longitude: {st.session_state.lng})"
 
         else:
             answer = "\nNoted! Can you please tell me your starting point? It can be a specific address or an area."
@@ -244,17 +245,22 @@ def generate_recommendations(context):
         - Identify user needs based on chat history (e.g., cuisine type, location).
         - Format responses clearly and professionally, in the style of a restaurant reviewer.
         - Indicate that choices are based on the nearest distance and user preferences.
+        - All restaurant given should be considered (3 recommendation if there's 3 restaurants)
         - For each restaurant, include and format the answer as following, the number should range between 1-3:
             introduction:
             ## number. The name of the restaurant as a large heading.
             [new line] A short and concise description (no more than 3 sentences).
+            ---
+            Google review: A short and concise summarization of google reviews (if available), end by mentioning the average rating and the relative latest review date (e.g: a week ago)
             - Distance from the user’s location.
             - Duration to get there.
             - The transportation fare, skip this if the fare is None
             - The address of the restaurant.
+            - The restaurant's instagram (skip if not available)
             Each separated by new line
         - Keep responses courteous and helpful, without making assumptions beyond the provided data.
         - End by asking if the user would like to see other options or adjust their preferences, or to put the number of the restaurant they want to know more in detail.
+
         """
         
         # prompt template, format the system message and user question
@@ -314,12 +320,37 @@ def get_distance(start, end):
         off_topic_response('location')
         return False
 
-def get_all_distance(address, context):
+def get_google_reviews(place_id):
+    url = f"https://places.googleapis.com/v1/places/{place_id}"
+
+    # Define the headers
+    headers = {
+        "Content-Type": "application/json; charset=utf-8",
+        "X-Goog-FieldMask": "reviews",
+    }
+
+    # Define the headers
+    params = {
+        "key": gmap_api,  # Replace with your actual API key
+    }
+
+    response = requests.get(url, params=params, headers=headers)
+    data = response.json()['reviews']
+
+    reviews = [{'rating': i['rating'], 'text': i['text']['text'], 'published': i['publishTime'].split('T')[0]} for i in data]
+
+    # turn dictionary to string
+    # return [json.dumps(dictionary, ensure_ascii=False) for dictionary in reviews]
+    return reviews
+
+def get_distance_and_review(address, context):
     with st.spinner('Fetching information...'):
         final_li = []
         for doc in context:
             context_dict = json.loads(dict(doc[0])['page_content'])
-            rest_address = dict(doc[0])['page_content'].split(':')[-1].strip(" \"}")
+            rest_address = context_dict[next(iter(context_dict))]['Address']
+            place_id = context_dict[next(iter(context_dict))]['Place ID']
+            
             context_dict['score'] = doc[1]
 
             # Define the base URL and parameters
@@ -347,10 +378,15 @@ def get_all_distance(address, context):
                 off_topic_response('location')
                 return False
             
+            try:
+                context_dict['google_reviews'] = get_google_reviews(place_id)
+            except:
+                context_dict['google_reviews'] = 'NA'
+            
     # Sort the list first by smallest distance, then by highest score
     sorted_data = sorted(
         final_li,
-       key=lambda x: (float(x['distance'].replace(' km', '').replace(' m', '').replace(',', '.')), -x['score']))
+       key=lambda x: (-x['score'], float(x['distance'].replace(' km', '').replace(' m', '').replace(',', '.'))))
 
     if np.mean([float(i['distance'].split()[0]) for i in sorted_data]) > 50:
         off_topic_response('far')
@@ -368,12 +404,10 @@ def further_info(context, number):
         end = start + slice_size
         selected = context[start:end][number-1]
         
-        rest_name_address = selected['Restaurant'] + '; ' + selected['Address'] 
-        place_id, place_loc = get_place_id(rest_name_address)
+        restaurant_dict = selected[next(iter(selected))]
 
-        metro_name, distance, duration = nearest_metro_walk(place_loc, selected['Address'])
-
-        restaurant_info = get_place_info(place_id)
+        metro_name, distance, duration = nearest_metro_walk(st.session_state.lat, st.session_state.lng, restaurant_dict['Address'])
+        restaurant_info = get_place_info(restaurant_dict['Place ID'])
         
 
         system = f"""
@@ -448,7 +482,7 @@ if st.session_state.input and (st.session_state.state == 'location'):
 
 if st.session_state.state == 'generate':
     restaurants_context = get_context(st.session_state.preference)
-    st.session_state.context = get_all_distance(st.session_state.location, restaurants_context)
+    st.session_state.context = get_distance_and_review(st.session_state.location, restaurants_context)
     if st.session_state.context != False:
         generate_recommendations(st.session_state.context)
         st.session_state.input = None
