@@ -11,6 +11,8 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 
+st.set_page_config(page_title="Restaurant Assistant")
+
 ### -------- SESSION STATE ---------
 if 'memories' not in st.session_state:
     st.session_state.memories = []
@@ -38,6 +40,7 @@ warnings.filterwarnings("ignore")
 # openai API key
 os.environ['OPENAI_API_KEY'] = st.secrets['OPENAI_API_KEY']
 gmap_api = st.secrets['GOOGLE_API_KEY']
+
 
 # webapp title
 st.title('London Restaurant AI Assitant')
@@ -215,7 +218,7 @@ def get_preference(input):
             st.session_state.location = response_text.split(' = ')[-1]
             st.session_state.lat, st.session_state.lng = get_geolocation(st.session_state.location  if 'london' in st.session_state.location.lower() else st.session_state.location + ', London')
             st.session_state.state = 'generate'
-            return response_text.lower() + f" (latitude: {st.session_state.lat}, longitude: {st.session_state.lng})"
+            return response_text.replace(st.session_state.location, "") + f" latitude: {st.session_state.lat}, longitude: {st.session_state.lng}"
 
         else:
             answer = "\nNoted! Can you please tell me your starting point? It can be a specific address or an area."
@@ -245,14 +248,14 @@ def generate_recommendations(context):
         Instructions:
         - Identify user needs based on chat history (e.g., cuisine type, location).
         - Format responses clearly and professionally, in the style of a restaurant reviewer.
-        - Indicate that choices are based on the nearest distance and user preferences.
         - All restaurant given should be considered (3 recommendation if there's 3 restaurants)
         - For each restaurant, include and format the answer as following, the number should range between 1-3:
             introduction:
             ## number. The name of the restaurant as a large heading.
-            [new line] A short and concise description (no more than 3 sentences).
+
+            (new line, SMALL text) A description of the restaurant (no more than 5 sentences), do not consider google reviews comments.
             ---
-            Google review: A short and concise summarization of google reviews (if available), end by mentioning the average rating and the relative latest review date (e.g: a week ago)
+            Google review: A short and concise summarization of google reviews (if available), end by mentioning the average rating of the last 5 reviews and the relative latest review date (e.g: a week ago), no more than 3 lines
             - Distance from the user’s location.
             - Duration to get there.
             - The transportation fare, skip this if the fare is None
@@ -318,6 +321,7 @@ def get_distance(start, end):
         return distance, duration
 
     except KeyError:
+        print(response)
         off_topic_response('location')
         return False
 
@@ -370,12 +374,13 @@ def get_distance_and_review(address, context):
             response = requests.get(base_url, params=params).json()
 
             try:
-                context_dict['distance'] = response['rows'][0]['elements'][0]['distance']['text']
-                context_dict['duration'] = response['rows'][0]['elements'][0]['duration']['text']
+                context_dict['distance'] = response['rows'][0]['elements'][0].get('distance', {}).get('text', None)
+                context_dict['duration'] = response['rows'][0]['elements'][0].get('duration', {}).get('text', None)
                 context_dict['fare'] = response['rows'][0]['elements'][0].get('fare', {}).get('text', None)
                 final_li.append(context_dict)
 
             except KeyError:
+                print(';;', response)
                 off_topic_response('location')
                 return False
             
@@ -384,16 +389,16 @@ def get_distance_and_review(address, context):
             except:
                 context_dict['google_reviews'] = 'NA'
             
-    # Sort the list first by smallest distance, then by highest score
-    sorted_data = sorted(
-        final_li,
-       key=lambda x: (-x['score'], float(x['distance'].replace(' km', '').replace(' m', '').replace(',', '.'))))
+    # # Sort the list first by smallest distance, then by highest score
+    # sorted_data = sorted(
+    #     final_li,
+    #    key=lambda x: (-x['score'], float(x['distance'].replace(' km', '').replace(' m', '').replace(',', '.'))))
 
-    if np.mean([float(i['distance'].split()[0]) for i in sorted_data]) > 50:
+    if np.mean([float(i['distance'].split()[0]) for i in final_li]) > 50:
         off_topic_response('far')
         return False
     else:      
-        return sorted_data
+        return final_li
     
 def further_info(context, number):
     with st.spinner('Fetching information...'):
