@@ -65,7 +65,7 @@ def check_response(user_input):
     prompt = f"""
         Based on this input: {user_input}, determine if:
         - It indicates agreement, yes, or if the user wants another options, answer ONLY 'other'
-        - It indicates the user wants to choose/set another preference, answer ONLY 'preference'
+        - It indicates the user wants to choose/set/adjust to another preference, answer ONLY 'preference'
         - If it indicates neither, answer ONLY 'neither'
         - If it is a number, do not change it and answer as it is
         - If it mentions a number, answer ONLY the number
