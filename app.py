@@ -415,6 +415,8 @@ def further_info(context, number):
             selected = context[start:end][number-1]
         except IndexError:
             off_topic_response('out of range')
+            st.session_state.state == 'continuation'
+            return False
         
         restaurant_dict = selected[next(iter(selected))]
 
