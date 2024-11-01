@@ -396,7 +396,7 @@ def get_distance_and_review(address, context):
     #     final_li,
     #    key=lambda x: (-x['score'], float(x['distance'].replace(' km', '').replace(' m', '').replace(',', '.'))))
 
-    if np.mean([float(i['distance'].split()[0]) for i in final_li]) > 50:
+    if np.mean([float(str(i['distance']).split()[0]) for i in final_li]) > 50:
         off_topic_response('far')
         return False
     else:      
