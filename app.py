@@ -182,6 +182,14 @@ def off_topic_response(topic):
 
         with st.chat_message("assistant"):
             st.write_stream(stream_data(answer))
+    elif topic == 'out of range':
+        answer = "\nPlease pick a number from the restaurants listed above."
+        st.session_state.memories.append({"role": "assistant", "content": answer})
+        st.session_state.state = 'continuation'
+
+        with st.chat_message("assistant"):
+            st.write_stream(stream_data(answer))
+
 
 
 def get_preference(input):
@@ -253,13 +261,13 @@ def generate_recommendations(context):
             introduction:
             ## number. The name of the restaurant as a large heading.
 
-            (new line, SMALL text) A description of the restaurant (no more than 5 sentences), do not consider google reviews comments.
+            (small italic text)*A description of the restaurant (no more than 5 sentences), do not consider google reviews comments.*
             ---
             Google review: A short and concise summarization of google reviews (if available), end by mentioning the average rating of the last 5 reviews and the relative latest review date (e.g: a week ago), no more than 3 lines
             - Distance from the user’s location.
             - Duration to get there.
             - The transportation fare, skip this if the fare is None
-            - The address of the restaurant.
+            - Address of the restaurant.
             - The restaurant's instagram (skip if not available)
             Each separated by new line
         - Keep responses courteous and helpful, without making assumptions beyond the provided data.
@@ -321,7 +329,6 @@ def get_distance(start, end):
         return distance, duration
 
     except KeyError:
-        print(response)
         off_topic_response('location')
         return False
 
@@ -373,17 +380,12 @@ def get_distance_and_review(address, context):
             # Make the request
             response = requests.get(base_url, params=params).json()
 
-            try:
-                context_dict['distance'] = response['rows'][0]['elements'][0].get('distance', {}).get('text', None)
-                context_dict['duration'] = response['rows'][0]['elements'][0].get('duration', {}).get('text', None)
-                context_dict['fare'] = response['rows'][0]['elements'][0].get('fare', {}).get('text', None)
-                final_li.append(context_dict)
 
-            except KeyError:
-                print(';;', response)
-                off_topic_response('location')
-                return False
-            
+            context_dict['distance'] = response['rows'][0]['elements'][0].get('distance', {}).get('text', 0)
+            context_dict['duration'] = response['rows'][0]['elements'][0].get('duration', {}).get('text', 0)
+            context_dict['fare'] = response['rows'][0]['elements'][0].get('fare', {}).get('text', None)
+            final_li.append(context_dict)
+
             try:
                 context_dict['google_reviews'] = get_google_reviews(place_id)
             except:
@@ -408,7 +410,11 @@ def further_info(context, number):
         # start = st.session_state.options * slice_size
         start = (st.session_state.options -1) * slice_size
         end = start + slice_size
-        selected = context[start:end][number-1]
+
+        try:
+            selected = context[start:end][number-1]
+        except IndexError:
+            off_topic_response('out of range')
         
         restaurant_dict = selected[next(iter(selected))]
 
@@ -483,7 +489,7 @@ if st.session_state.input and (st.session_state.state == 'prepare'):
     st.session_state.preference = get_preference(user_input)
 
 if st.session_state.input and (st.session_state.state == 'location'):
-    st.session_state.location = user_input
+    st.session_state.preference = get_preference(st.session_state.preference + f" preferred location: {user_input}")
     st.session_state.state = 'generate'
 
 if st.session_state.state == 'generate':
