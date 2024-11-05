@@ -39,7 +39,7 @@ if ('lat' not in st.session_state) or ('lng' not in st.session_state):
 # Suppress warnings related to date parsing
 warnings.filterwarnings("ignore")
 
-# openai API key
+# openai & google maps API key
 os.environ['OPENAI_API_KEY'] = st.secrets['OPENAI_API_KEY']
 gmap_api = st.secrets['GOOGLE_API_KEY']
 

@@ -68,6 +68,49 @@ def get_preference(input):
             st.session_state.input = None
             return response_text
         
+def restaurant_summary(restaurant):
+    system = f"""
+    You are a polite and professional restaurant recommender assistant. Your task is to suggest restaurants based on user preferences inferred from chat history and context, which includes details about three restaurants (cuisine, location, and distance).
+
+    Instructions:
+    - Identify user needs based on chat history (e.g., cuisine type, location).
+    - Format responses clearly and professionally, in the style of a restaurant reviewer.
+    - All restaurant given should be considered (3 recommendation if there's 3 restaurants)
+    - For each restaurant, include and format the answer as following, the number should range between 1-3:
+        introduction:
+        ## number. The name of the restaurant as a large heading.
+
+        (small italic text)*A description of the restaurant (no more than 5 sentences), do not consider google reviews comments.*
+        ---
+        Google review: A short and concise summarization of google reviews (if available), end by mentioning the average rating of the last 5 reviews and the relative latest review date (e.g: a week ago), no more than 3 lines
+        - Distance from the user’s location.
+        - Duration to get there.
+        - The transportation fare, skip this if the fare is None
+        - Address of the restaurant.
+        - The restaurant's instagram  (skip this line if their instagram is not available)
+        - After each restaurant insert a "<ig_placeholder>"
+    - Keep responses courteous and helpful, without making assumptions beyond the provided data.
+    - End by asking if the user would like to see other options or adjust their preferences, or to put the number of the restaurant they want to know more in detail.
+    """
+    
+    # prompt template, format the system message and user question
+    TEMPLATE = ChatPromptTemplate.from_messages(
+        [
+            ("system", system),
+            ("system", "Chat history: {chat_history}"),
+            ("system", "Here are the restaurants data: {restaurant}"),
+            # ("human", "User question: {input}"),
+        ]
+    )
+    prompt = TEMPLATE.format(chat_history= st.session_state.memories, restaurant=restaurant)
+
+    with st.spinner('Fetching information...'):
+        model = ChatOpenAI(model="gpt-4o")
+        response_text = model.invoke(prompt).content
+        st.session_state.memories.append({"role": "assistant", "content": response_text})
+
+    return response_text
+
 
 def generate_recommendations(context):
     if st.session_state.options <= 2:
@@ -77,54 +120,24 @@ def generate_recommendations(context):
         start = st.session_state.options * slice_size
         end = start + slice_size
 
-        selected = context[start:end]
-
-        system = f"""
-        You are a polite and professional restaurant recommender assistant. Your task is to suggest restaurants based on user preferences inferred from chat history and context, which includes details about three restaurants (cuisine, location, and distance).
-
-        Instructions:
-        - Identify user needs based on chat history (e.g., cuisine type, location).
-        - Format responses clearly and professionally, in the style of a restaurant reviewer.
-        - All restaurant given should be considered (3 recommendation if there's 3 restaurants)
-        - For each restaurant, include and format the answer as following, the number should range between 1-3:
-            introduction:
-            ## number. The name of the restaurant as a large heading.
-
-            (small italic text)*A description of the restaurant (no more than 5 sentences), do not consider google reviews comments.*
-            ---
-            Google review: A short and concise summarization of google reviews (if available), end by mentioning the average rating of the last 5 reviews and the relative latest review date (e.g: a week ago), no more than 3 lines
-            - Distance from the user’s location.
-            - Duration to get there.
-            - The transportation fare, skip this if the fare is None
-            - Address of the restaurant.
-            - The restaurant's instagram (skip if not available)
-            Each separated by new line
-        - Keep responses courteous and helpful, without making assumptions beyond the provided data.
-        - End by asking if the user would like to see other options or adjust their preferences, or to put the number of the restaurant they want to know more in detail.
-
-        """
-        
-        # prompt template, format the system message and user question
-        TEMPLATE = ChatPromptTemplate.from_messages(
-            [
-                ("system", system),
-                ("system", "Chat history: {chat_history}"),
-                ("system", "Here are the restaurants data: {selected}"),
-                # ("human", "User question: {input}"),
-            ]
-        )
-        prompt = TEMPLATE.format(chat_history= st.session_state.memories, selected=selected)
-
-        with st.spinner('Fetching information...'):
-            model = ChatOpenAI(model="gpt-4o")
-            response_text = model.invoke(prompt).content
-            st.session_state.memories.append({"role": "assistant", "content": response_text})
-
-        st.session_state.options += 1
+        restaurants = context[start:end]
+        ig_handle = [ig[next(iter(ig))]['Instagram'] for ig in restaurants]
+    
+        response_text = restaurant_summary(restaurants)
+        response_text_list = response_text.split('<ig_placeholder>')
+        response_text_list
 
         with st.chat_message("assistant"):
-            st.write_stream(stream_data(response_text))
+            for idx, response in enumerate(response_text_list):
+                st.write_stream(stream_data(response))
+                try:
+                    if type(ig_handle[idx]) == str:
+                        st.components.v1.iframe(f"{ig_handle[idx].strip('/')}/embed/", height=380, scrolling=True)
+                except IndexError:
+                    pass
+        
 
+        st.session_state.options += 1
         st.session_state.state = 'continuation'
 
     else:
