@@ -144,7 +144,6 @@ def get_distance_and_review(address, context):
             try:
                 context_dict = json.loads(dict(doc[0])['page_content'])
                 rest_address = context_dict[next(iter(context_dict))]['Address']
-                print(rest_address)
                 place_id = context_dict[next(iter(context_dict))]['Place ID']
             except KeyError:
                 continue
@@ -168,7 +167,6 @@ def get_distance_and_review(address, context):
 
 
             context_dict['distance'] = response['rows'][0]['elements'][0].get('distance', {}).get('text', 0)
-            print(context_dict['distance'])
             context_dict['duration'] = response['rows'][0]['elements'][0].get('duration', {}).get('text', 0)
             context_dict['fare'] = response['rows'][0]['elements'][0].get('fare', {}).get('text', None)
             final_li.append(context_dict)
