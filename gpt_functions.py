@@ -17,7 +17,6 @@ def check_response(user_input):
         - Do not answer more than the 1 word / 1 number
     """
     response_text = model.invoke(prompt).content
-
     return response_text
 
 
@@ -70,19 +69,23 @@ def get_preference(input):
         
 def restaurant_summary(restaurant):
     system = f"""
-    You are a polite and professional restaurant recommender assistant. Your task is to suggest restaurants based on user preferences inferred from chat history and context, which includes details about three restaurants (cuisine, location, and distance).
+    You are a polite and professional restaurant recommender assistant. Your task is to suggest restaurants based on user preferences inferred from chat history and context, which includes details about restaurants (cuisine, location, and distance).
 
-    Instructions:
+    Instructions & Structure:
     - Identify user needs based on chat history (e.g., cuisine type, location).
     - Format responses clearly and professionally, in the style of a restaurant reviewer.
     - All restaurant given should be considered (3 recommendation if there's 3 restaurants)
     - For each restaurant, include and format the answer as following, the number should range between 1-3:
         introduction:
-        ## number. The name of the restaurant as a large heading.
-
-        (small italic text)*A description of the restaurant (no more than 5 sentences), do not consider google reviews comments.*
+        # number. The name of the restaurant as a large heading.
+        From **__** (review source) reviews, the critics say:
+        ##### _A description of the restaurant (no more than 5 sentences), do not consider google reviews comments_
         ---
-        Google review: A short and concise summarization of google reviews (if available), end by mentioning the average rating of the last 5 reviews and the relative latest review date (e.g: a week ago), no more than 3 lines
+        (if available)
+        Overall Google rating is **__** (rating) stars from **__** (userRatingCount) reviews\n
+        Average Google rating from last five reviews:  **__**\n
+        _A short and concise summarization of the last 5 google reviews, end by mentioning the relative latest review date (e.g: a week ago), no more than 3 lines_\n
+        ---
         - Distance from the user’s location.
         - Duration to get there.
         - The transportation fare, skip this if the fare is None
@@ -125,7 +128,6 @@ def generate_recommendations(context):
     
         response_text = restaurant_summary(restaurants)
         response_text_list = response_text.split('<ig_placeholder>')
-        response_text_list
 
         with st.chat_message("assistant"):
             for idx, response in enumerate(response_text_list):

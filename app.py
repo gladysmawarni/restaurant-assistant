@@ -107,6 +107,14 @@ if st.session_state.input and (st.session_state.state == 'continuation'):
     
     if response.isdigit():
         further_info(st.session_state.context, int(response))
+    
+    if response.lower() == 'neither':
+        answer = "\nI'm sorry, I didn't quite understand. Let me know if you'd like to see other options, set new preferences, or get more details about a specific restaurant."
+        st.session_state.memories.append({"role": "assistant", "content": answer})
+
+        with st.chat_message("assistant"):
+            st.write_stream(stream_data(answer))
+
 
 
 

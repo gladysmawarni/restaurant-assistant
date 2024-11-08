@@ -119,7 +119,7 @@ def get_google_reviews(place_id):
     # Define the headers
     headers = {
         "Content-Type": "application/json; charset=utf-8",
-        "X-Goog-FieldMask": "reviews",
+        "X-Goog-FieldMask": "rating,userRatingCount,reviews",
     }
 
     # Define the headers
@@ -127,14 +127,14 @@ def get_google_reviews(place_id):
         "key": gmap_api,  # Replace with your actual API key
     }
 
-    response = requests.get(url, params=params, headers=headers)
-    data = response.json()['reviews']
-
-    reviews = [{'rating': i['rating'], 'text': i['text']['text'], 'published': i['publishTime'].split('T')[0]} for i in data]
+    response = requests.get(url, params=params, headers=headers).json()
+    
+    reviews_data = response['reviews']
+    reviews = [{'rating': i['rating'], 'text': i['text']['text'], 'published': i['publishTime'].split('T')[0]} for i in reviews_data]
 
     # turn dictionary to string
     # return [json.dumps(dictionary, ensure_ascii=False) for dictionary in reviews]
-    return reviews
+    return response['rating'], response['userRatingCount'], reviews
 
 
 def get_distance_and_review(address, context):
@@ -166,22 +166,28 @@ def get_distance_and_review(address, context):
             response = requests.get(base_url, params=params).json()
 
 
-            context_dict['distance'] = response['rows'][0]['elements'][0].get('distance', {}).get('text', 0)
-            context_dict['duration'] = response['rows'][0]['elements'][0].get('duration', {}).get('text', 0)
-            context_dict['fare'] = response['rows'][0]['elements'][0].get('fare', {}).get('text', None)
-            final_li.append(context_dict)
-
-            try:
-                context_dict['google_reviews'] = get_google_reviews(place_id)
-            except:
-                context_dict['google_reviews'] = 'NA'
+            distance_text = response['rows'][0]['elements'][0].get('distance', {}).get('text', 'NA')
+            if distance_text != 'NA':
+                # Convert distance to a numeric value (assuming it's in km or m format)
+                distance_value = float(distance_text.split()[0])  # Extract numeric part of distance
+                
+                # Keep only entries with distance <= 2 km
+                if distance_value <= 3:
+                    context_dict['distance'] = distance_text
+                    context_dict['duration'] = response['rows'][0]['elements'][0].get('duration', {}).get('text', 'NA')
+                    context_dict['fare'] = response['rows'][0]['elements'][0].get('fare', {}).get('text', None)
+                    
+                    # Fetch Google reviews
+                    try:
+                        context_dict['total_rating'], context_dict['rating_counts'], context_dict['google_reviews'] = get_google_reviews(place_id)
+                    except:
+                        context_dict['total_rating'], context_dict['rating_counts'], context_dict['google_reviews'] = 'NA', 'NA', 'NA'
+                    
+                    final_li.append(context_dict)
+           
             
-    # # Sort the list first by smallest distance, then by highest score
-    # sorted_data = sorted(
-    #     final_li,
-    #    key=lambda x: (-x['score'], float(x['distance'].replace(' km', '').replace(' m', '').replace(',', '.'))))
-
-    if np.mean([float(str(i['distance']).split()[0]) for i in final_li]) > 50:
+    # Check the average distance and determine if the response is on-topic
+    if not final_li or np.mean([float(str(i['distance']).split()[0]) for i in final_li]) > 50:
         off_topic_response('far')
         return False
     else:
