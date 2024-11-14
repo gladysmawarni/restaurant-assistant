@@ -78,7 +78,7 @@ def restaurant_summary(restaurant):
     - For each restaurant, include and format the answer as following, the number should range between 1-3:
         introduction:
         # number. The name of the restaurant as a large heading.
-        From **__** (review sources - specify all) reviews, the critics say:
+        From **__** (number of unique review sources) review(s), the critics say:
         ##### _A description of the restaurant (no more than 5 sentences), do not consider google reviews comments_
         ---
         (if available)
@@ -138,8 +138,8 @@ def generate_recommendations(context):
                 except IndexError:
                     pass
         
-
-        st.session_state.options += 1
+        if len(restaurants) > 0:
+            st.session_state.options += 1
         st.session_state.state = 'continuation'
 
     else:
@@ -164,6 +164,7 @@ def further_info(context, number):
 
         try:
             selected = context[start:end][number-1]
+
         except IndexError:
             off_topic_response('out of range')
             st.session_state.state == 'continuation'
