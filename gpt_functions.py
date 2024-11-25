@@ -78,7 +78,7 @@ def restaurant_summary(restaurant):
     - For each restaurant, include and format the answer as following, the number should range between 1-3:
         introduction:
         # number. The name of the restaurant as a large heading.
-        From **__** (number of unique review sources) review(s), the critics say:
+        From **__** (number of UNIQUE review sources - don't count all) review(s), the critics say:
         ##### _A description of the restaurant (no more than 5 sentences), do not consider google reviews comments_
         ---
         (if available)
