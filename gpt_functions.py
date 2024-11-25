@@ -84,7 +84,7 @@ def restaurant_summary(restaurant):
         (if available)
         Overall Google rating is **__** (rating) stars from **__** (userRatingCount) reviews\n
         Average Google rating from last five reviews:  **__**\n
-        _*A short and concise summarization of the last 5 google reviews, end by mentioning the relative latest review date (e.g: a week ago), no more than 3 lines*_\n
+        `A short and concise summarization of the last 5 google reviews, end by mentioning the relative latest review date (e.g: a week ago), no more than 3 lines`\n
         ---
         - Distance from the user’s location.
         - Duration to get there.
