@@ -14,7 +14,7 @@ def stream_data(response):
         time.sleep(0.04)
 
 def get_context(preference):
-    print(preference)
+    # print(preference)
     docs_faiss = faiss_db.similarity_search_with_relevance_scores(preference, k=15)
     return docs_faiss
 

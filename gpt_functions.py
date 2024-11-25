@@ -54,7 +54,7 @@ def get_preference(input):
             st.session_state.location = response_text.split(' = ')[-1]
             st.session_state.lat, st.session_state.lng = get_geolocation(st.session_state.location)
             st.session_state.state = 'generate'
-            return response_text.replace(st.session_state.location, "") + f" latitude: {st.session_state.lat}, longitude: {st.session_state.lng}"
+            return response_text + f" latitude: {st.session_state.lat}, longitude: {st.session_state.lng}"
 
         else:
             answer = "\nNoted! Can you please tell me your starting point? It can be a specific address or an area."
