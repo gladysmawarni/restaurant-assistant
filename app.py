@@ -9,7 +9,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 # custom functions
-from utils import stream_data, get_context, off_topic_response
+from utils import stream_data, get_context
 from maps_function import get_distance_and_review
 from gpt_functions import check_response, get_preference, generate_recommendations, further_info
 
